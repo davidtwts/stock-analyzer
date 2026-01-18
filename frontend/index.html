@@ -33,8 +33,54 @@
         <main class="flex h-[calc(100vh-73px)]">
             <aside class="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
                 <div class="p-4">
+                    <!-- Filter Panel -->
+                    <div class="mb-4 bg-gray-700 rounded-lg overflow-hidden">
+                        <button @click="filtersExpanded = !filtersExpanded" class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-600">
+                            <span class="font-medium">斜率篩選</span>
+                            <span>{{ filtersExpanded ? '▼' : '▶' }}</span>
+                        </button>
+                        <div v-show="filtersExpanded" class="px-3 pb-3 space-y-3">
+                            <!-- 5MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>5MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_5ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_5ma" min="0" max="1.5" step="0.05" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- 10MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>10MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_10ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_10ma" min="0" max="1.0" step="0.05" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- 20MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>20MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_20ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_20ma" min="0" max="0.5" step="0.01" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- R/R Toggle -->
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-300">損益比 ≥ 3.0</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="rrFilterEnabled" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <!-- Reset Button -->
+                            <button @click="resetFilters" class="w-full py-1 text-sm bg-gray-600 hover:bg-gray-500 rounded">
+                                重置篩選條件
+                            </button>
+                        </div>
+                    </div>
+
                     <h2 class="text-lg font-semibold mb-3">
-                        📋 符合條件 ({{ stocks.length }}檔)
+                        符合條件 ({{ stocks.length }}/{{ allStocks.length }}檔)
                     </h2>
                     <div v-if="loading" class="text-center py-8 text-gray-400">
                         載入中...
