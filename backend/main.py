@@ -4,13 +4,20 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from backend.config import TAIWAN_50, STOCK_NAMES
+
+# Get the project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
 from backend.data_engine import DataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
@@ -165,3 +172,14 @@ async def refresh():
     """Manually trigger a refresh."""
     run_screening()
     return {"status": "ok", "updated_at": last_update.isoformat()}
+
+
+# Serve frontend static files
+@app.get("/")
+async def serve_index():
+    """Serve the frontend index.html."""
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+# Mount static files (CSS, JS)
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")

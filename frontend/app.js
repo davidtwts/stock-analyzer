@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:8000';
+// Use relative path for deployment, or localhost for development
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 
