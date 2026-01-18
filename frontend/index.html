@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台股即時篩選器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div id="app">
+        <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">📈</span>
+                    <h1 class="text-xl font-bold">台股即時篩選器</h1>
+                    <span :class="marketStatusClass" class="px-2 py-1 rounded text-sm">
+                        {{ marketStatus === 'open' ? '開盤中' : '休市' }}
+                    </span>
+                </div>
+                <div class="flex items-center gap-4 text-sm text-gray-400">
+                    <span>更新: {{ formatTime(lastUpdate) }}</span>
+                    <span>下次: {{ formatTime(nextUpdate) }}</span>
+                    <button @click="refresh" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded">
+                        ⟳ 刷新
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex h-[calc(100vh-73px)]">
+            <aside class="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
+                <div class="p-4">
+                    <h2 class="text-lg font-semibold mb-3">
+                        📋 符合條件 ({{ stocks.length }}檔)
+                    </h2>
+                    <div v-if="loading" class="text-center py-8 text-gray-400">
+                        載入中...
+                    </div>
+                    <div v-else-if="stocks.length === 0" class="text-center py-8 text-gray-400">
+                        目前無符合條件的股票
+                    </div>
+                    <div v-else class="space-y-2">
+                        <div
+                            v-for="stock in stocks"
+                            :key="stock.symbol"
+                            @click="selectStock(stock)"
+                            :class="{ 'ring-2 ring-blue-500': selectedStock?.symbol === stock.symbol }"
+                            class="bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-600 transition"
+                        >
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="font-mono text-sm text-gray-400">{{ stock.symbol.replace('.TW', '') }}</span>
+                                    <span class="ml-2 font-medium">{{ stock.name }}</span>
+                                </div>
+                                <span :class="stock.change_pct >= 0 ? 'text-red-400' : 'text-green-400'">
+                                    {{ stock.change_pct >= 0 ? '▲' : '▼' }}{{ Math.abs(stock.change_pct).toFixed(2) }}%
+                                </span>
+                            </div>
+                            <div class="flex justify-between mt-2">
+                                <span class="text-lg font-bold">${{ stock.price }}</span>
+                                <span class="text-sm text-yellow-400">R/R: {{ stock.risk_reward.toFixed(1) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="flex-1 flex flex-col">
+                <div class="flex-1 p-4">
+                    <div v-if="!selectedStock" class="h-full flex items-center justify-center text-gray-500">
+                        ← 點選左側股票查看 K 線圖
+                    </div>
+                    <div v-else class="h-full">
+                        <h3 class="text-lg font-semibold mb-2">
+                            {{ selectedStock.symbol.replace('.TW', '') }} {{ selectedStock.name }}
+                        </h3>
+                        <div id="chart" class="h-[calc(100%-2rem)] bg-gray-800 rounded-lg"></div>
+                    </div>
+                </div>
+
+                <div v-if="selectedStock" class="bg-gray-800 border-t border-gray-700 p-4">
+                    <h3 class="text-lg font-semibold mb-3">📊 交易建議</h3>
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="text-sm text-gray-400">現價</div>
+                            <div class="text-xl font-bold">${{ selectedStock.price }}</div>
+                        </div>
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="text-sm text-gray-400">停損</div>
+                            <div class="text-xl font-bold text-red-400">${{ selectedStock.stop_loss }}</div>
+                        </div>
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="text-sm text-gray-400">停利</div>
+                            <div class="text-xl font-bold text-green-400">${{ selectedStock.take_profit }}</div>
+                        </div>
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="text-sm text-gray-400">損益比</div>
+                            <div class="text-xl font-bold text-yellow-400">{{ selectedStock.risk_reward.toFixed(1) }}:1</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-4 gap-4 text-sm">
+                        <div class="text-center">
+                            <span class="text-gray-400">5MA:</span>
+                            <span class="ml-1">{{ selectedStock.ma5 }}</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="text-gray-400">10MA:</span>
+                            <span class="ml-1">{{ selectedStock.ma10 }}</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="text-gray-400">20MA:</span>
+                            <span class="ml-1">{{ selectedStock.ma20 }}</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="text-gray-400">60MA:</span>
+                            <span class="ml-1">{{ selectedStock.ma60 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
