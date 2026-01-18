@@ -226,6 +226,51 @@ async def refresh():
     return {"status": "ok", "updated_at": last_update.isoformat()}
 
 
+@app.get("/api/watchlist")
+async def get_watchlist():
+    """Get current watchlist."""
+    return {"watchlist": list(watchlist.values())}
+
+
+@app.post("/api/watchlist/{symbol}")
+async def add_to_watchlist(symbol: str, alert_enabled: bool = True):
+    """Add a stock to watchlist."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    watchlist[symbol] = {
+        "symbol": symbol,
+        "name": STOCK_NAMES.get(symbol, symbol),
+        "alert_enabled": alert_enabled,
+    }
+    return {"status": "ok", "item": watchlist[symbol]}
+
+
+@app.delete("/api/watchlist/{symbol}")
+async def remove_from_watchlist(symbol: str):
+    """Remove a stock from watchlist."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    if symbol in watchlist:
+        del watchlist[symbol]
+        return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Stock not in watchlist")
+
+
+@app.patch("/api/watchlist/{symbol}/alert")
+async def toggle_watchlist_alert(symbol: str, enabled: bool):
+    """Toggle alert for a watchlist item."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    if symbol not in watchlist:
+        raise HTTPException(status_code=404, detail="Stock not in watchlist")
+
+    watchlist[symbol]["alert_enabled"] = enabled
+    return {"status": "ok", "item": watchlist[symbol]}
+
+
 # Serve frontend static files
 @app.get("/")
 async def serve_index():
