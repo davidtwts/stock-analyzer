@@ -52,9 +52,18 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     logger.info("Starting stock screener...")
-    run_screening()  # Initial screening
+    # Don't run screening on startup - let scheduler handle it
+    # This allows the app to start quickly for health checks
     scheduler.set_update_callback(run_screening)
     scheduler.start()
+
+    # Schedule first screening after 5 seconds (non-blocking)
+    import threading
+    def delayed_first_run():
+        import time
+        time.sleep(5)
+        run_screening()
+    threading.Thread(target=delayed_first_run, daemon=True).start()
 
     yield
 
