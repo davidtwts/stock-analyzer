@@ -77,6 +77,17 @@ MA_PERIODS = [5, 10, 20, 60]
 # Risk/Reward ratio threshold
 MIN_RISK_REWARD = 3.0
 
+# Volume filters
+MIN_AVG_VOLUME = 1000000  # Minimum 20-day average volume (1000張 = 1,000,000股)
+VOLUME_BREAKOUT_RATIO = 1.0  # Current volume must be >= this ratio of 20-day avg
+
+# Price range filter
+MIN_PRICE = 10.0   # Minimum stock price (避免低價股)
+MAX_PRICE = 1000.0  # Maximum stock price (避免高價股難以操作)
+
+# Trading value ranking
+TOP_TRADING_VALUE_COUNT = 100  # 每日交易值前N名
+
 # Market hours (Taiwan: 09:00-13:30)
 MARKET_OPEN = time(9, 0)
 MARKET_CLOSE = time(13, 30)

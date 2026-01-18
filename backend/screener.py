@@ -7,7 +7,14 @@ from typing import Optional
 
 import pandas as pd
 
-from backend.config import MIN_RISK_REWARD, STOCK_NAMES
+from backend.config import (
+    MIN_RISK_REWARD,
+    STOCK_NAMES,
+    MIN_AVG_VOLUME,
+    VOLUME_BREAKOUT_RATIO,
+    MIN_PRICE,
+    MAX_PRICE,
+)
 from backend.data_engine import DataEngine
 
 logger = logging.getLogger(__name__)
@@ -27,6 +34,9 @@ class ScreenResult:
     stop_loss: float
     take_profit: float
     risk_reward_ratio: float
+    volume: int
+    avg_volume: float
+    volume_ratio: float
 
 
 class Screener:
@@ -35,6 +45,57 @@ class Screener:
     def __init__(self, data_engine: Optional[DataEngine] = None):
         """Initialize screener with optional data engine."""
         self.data_engine = data_engine or DataEngine()
+
+    def check_price_range(self, price: float) -> bool:
+        """
+        Check if stock price is within acceptable range.
+
+        Args:
+            price: Current stock price
+
+        Returns:
+            True if within range, False otherwise
+        """
+        return MIN_PRICE <= price <= MAX_PRICE
+
+    def check_volume(self, df: pd.DataFrame) -> dict:
+        """
+        Check if stock meets volume criteria.
+
+        Criteria:
+        - 20-day average volume >= MIN_AVG_VOLUME
+        - Current volume >= VOLUME_BREAKOUT_RATIO * 20-day avg
+
+        Args:
+            df: DataFrame with Volume column
+
+        Returns:
+            Dict with volume, avg_volume, volume_ratio, and passed status
+        """
+        if df.empty or "Volume" not in df.columns:
+            return {"passed": False, "volume": 0, "avg_volume": 0, "volume_ratio": 0}
+
+        # Get current volume and 20-day average
+        current_volume = int(df.iloc[-1]["Volume"])
+        avg_volume = df["Volume"].tail(20).mean()
+
+        if avg_volume == 0:
+            return {"passed": False, "volume": current_volume, "avg_volume": 0, "volume_ratio": 0}
+
+        volume_ratio = current_volume / avg_volume
+
+        # Check criteria
+        passed = (
+            avg_volume >= MIN_AVG_VOLUME and
+            volume_ratio >= VOLUME_BREAKOUT_RATIO
+        )
+
+        return {
+            "passed": passed,
+            "volume": current_volume,
+            "avg_volume": round(avg_volume, 0),
+            "volume_ratio": round(volume_ratio, 2),
+        }
 
     def check_ma_alignment(self, df: pd.DataFrame) -> bool:
         """
@@ -133,13 +194,24 @@ class Screener:
             logger.warning(f"{symbol}: Insufficient data")
             return None
 
+        latest = df.iloc[-1]
+        current_price = latest["Close"]
+
+        # Check price range
+        if not self.check_price_range(current_price):
+            logger.debug(f"{symbol}: Price {current_price} outside range [{MIN_PRICE}, {MAX_PRICE}]")
+            return None
+
+        # Check volume criteria
+        vol = self.check_volume(df)
+        if not vol["passed"]:
+            logger.debug(f"{symbol}: Volume criteria not met (avg={vol['avg_volume']}, ratio={vol['volume_ratio']})")
+            return None
+
         # Check MA alignment
         if not self.check_ma_alignment(df):
             logger.debug(f"{symbol}: MA alignment not met")
             return None
-
-        latest = df.iloc[-1]
-        current_price = latest["Close"]
 
         # Calculate risk/reward
         rr = self.calculate_risk_reward(df, current_price)
@@ -167,6 +239,9 @@ class Screener:
             stop_loss=rr["stop_loss"],
             take_profit=rr["take_profit"],
             risk_reward_ratio=rr["risk_reward_ratio"],
+            volume=vol["volume"],
+            avg_volume=vol["avg_volume"],
+            volume_ratio=vol["volume_ratio"],
         )
 
     def screen_all(self, symbols: list[str]) -> list[ScreenResult]:

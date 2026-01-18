@@ -33,6 +33,17 @@ createApp({
             });
         };
 
+        const formatVolume = (volume) => {
+            if (volume >= 100000000) {
+                return (volume / 100000000).toFixed(1) + '億';
+            } else if (volume >= 10000) {
+                return (volume / 10000).toFixed(0) + '萬';
+            } else if (volume >= 1000) {
+                return (volume / 1000).toFixed(1) + 'k';
+            }
+            return volume.toString();
+        };
+
         const fetchStocks = async () => {
             try {
                 const res = await fetch(`${API_BASE}/api/stocks`);
@@ -190,6 +201,7 @@ createApp({
             marketStatus,
             marketStatusClass,
             formatTime,
+            formatVolume,
             refresh,
             selectStock,
         };

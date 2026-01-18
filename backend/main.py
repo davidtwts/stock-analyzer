@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.config import TAIWAN_50, STOCK_NAMES
+from backend.config import TAIWAN_50, STOCK_NAMES, TOP_TRADING_VALUE_COUNT
 
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -21,6 +21,7 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 from backend.data_engine import DataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
+from backend.twse_fetcher import fetch_top_trading_value_stocks
 
 # Configure logging
 logging.basicConfig(
@@ -41,8 +42,16 @@ def run_screening():
     """Run the stock screening process."""
     global cached_results, last_update
 
-    logger.info(f"Screening {len(TAIWAN_50)} stocks...")
-    cached_results = screener.screen_all(TAIWAN_50)
+    # First try to get top trading value stocks from TWSE
+    top_stocks = fetch_top_trading_value_stocks(TOP_TRADING_VALUE_COUNT)
+
+    # Fallback to Taiwan 50 if TWSE fetch fails
+    if not top_stocks:
+        logger.warning("Failed to fetch TWSE data, falling back to Taiwan 50")
+        top_stocks = TAIWAN_50
+
+    logger.info(f"Screening {len(top_stocks)} stocks...")
+    cached_results = screener.screen_all(top_stocks)
     last_update = datetime.now()
     logger.info(f"Found {len(cached_results)} stocks matching criteria")
 
@@ -109,6 +118,9 @@ async def get_stocks():
                 "stop_loss": r.stop_loss,
                 "take_profit": r.take_profit,
                 "risk_reward": r.risk_reward_ratio,
+                "volume": r.volume,
+                "avg_volume": r.avg_volume,
+                "volume_ratio": r.volume_ratio,
             }
             for r in cached_results
         ],

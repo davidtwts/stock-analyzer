@@ -63,6 +63,12 @@
                                 <span class="text-lg font-bold">${{ stock.price }}</span>
                                 <span class="text-sm text-yellow-400">R/R: {{ stock.risk_reward.toFixed(1) }}</span>
                             </div>
+                            <div class="flex justify-between mt-1 text-xs text-gray-400">
+                                <span>量: {{ formatVolume(stock.volume) }}</span>
+                                <span :class="stock.volume_ratio >= 1.5 ? 'text-orange-400' : ''">
+                                    {{ stock.volume_ratio.toFixed(1) }}x
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -83,7 +89,7 @@
 
                 <div v-if="selectedStock" class="bg-gray-800 border-t border-gray-700 p-4">
                     <h3 class="text-lg font-semibold mb-3">📊 交易建議</h3>
-                    <div class="grid grid-cols-4 gap-4">
+                    <div class="grid grid-cols-5 gap-4">
                         <div class="bg-gray-700 rounded p-3">
                             <div class="text-sm text-gray-400">現價</div>
                             <div class="text-xl font-bold">${{ selectedStock.price }}</div>
@@ -99,6 +105,12 @@
                         <div class="bg-gray-700 rounded p-3">
                             <div class="text-sm text-gray-400">損益比</div>
                             <div class="text-xl font-bold text-yellow-400">{{ selectedStock.risk_reward.toFixed(1) }}:1</div>
+                        </div>
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="text-sm text-gray-400">量比</div>
+                            <div :class="selectedStock.volume_ratio >= 1.5 ? 'text-xl font-bold text-orange-400' : 'text-xl font-bold'">
+                                {{ selectedStock.volume_ratio.toFixed(2) }}x
+                            </div>
                         </div>
                     </div>
                     <div class="mt-3 grid grid-cols-4 gap-4 text-sm">
