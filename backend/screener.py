@@ -37,6 +37,9 @@ class ScreenResult:
     volume: int
     avg_volume: float
     volume_ratio: float
+    slope_5ma: Optional[float] = None
+    slope_10ma: Optional[float] = None
+    slope_20ma: Optional[float] = None
 
 
 class Screener:
@@ -270,6 +273,9 @@ class Screener:
         else:
             change_pct = 0
 
+        # Calculate MA slopes
+        slopes = self.calculate_ma_slopes(df)
+
         return ScreenResult(
             symbol=symbol,
             name=STOCK_NAMES.get(symbol, symbol),
@@ -285,6 +291,9 @@ class Screener:
             volume=vol["volume"],
             avg_volume=vol["avg_volume"],
             volume_ratio=vol["volume_ratio"],
+            slope_5ma=slopes["slope_5ma"],
+            slope_10ma=slopes["slope_10ma"],
+            slope_20ma=slopes["slope_20ma"],
         )
 
     def screen_all(self, symbols: list[str]) -> list[ScreenResult]:
