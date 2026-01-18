@@ -79,6 +79,71 @@
                         </div>
                     </div>
 
+                    <!-- Watchlist Panel -->
+                    <div class="mb-4 bg-gray-700 rounded-lg overflow-hidden">
+                        <button
+                            @click="watchlistExpanded = !watchlistExpanded"
+                            class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-600"
+                        >
+                            <span class="font-medium">⭐ 自選股監控</span>
+                            <span>{{ watchlistExpanded ? '▼' : '▶' }}</span>
+                        </button>
+
+                        <div v-show="watchlistExpanded" class="px-3 pb-3">
+                            <div v-if="watchlist.length === 0" class="text-sm text-gray-400 py-2">
+                                尚無自選股
+                            </div>
+                            <div v-else class="space-y-2 mb-2">
+                                <div
+                                    v-for="item in watchlist"
+                                    :key="item.symbol"
+                                    class="flex items-center justify-between bg-gray-600 rounded px-2 py-1"
+                                >
+                                    <span class="text-sm">
+                                        {{ item.symbol.replace('.TW', '') }} {{ item.name }}
+                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            @click="toggleWatchlistAlert(item.symbol, !item.alert_enabled)"
+                                            :class="item.alert_enabled ? 'text-yellow-400' : 'text-gray-500'"
+                                            class="text-lg"
+                                        >
+                                            {{ item.alert_enabled ? '🔔' : '🔕' }}
+                                        </button>
+                                        <button
+                                            @click="removeFromWatchlist(item.symbol)"
+                                            class="text-red-400 hover:text-red-300"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="showAddStock" class="flex gap-2 mt-2">
+                                <input
+                                    v-model="newStockSymbol"
+                                    placeholder="股票代號"
+                                    class="flex-1 bg-gray-600 rounded px-2 py-1 text-sm"
+                                    @keyup.enter="addToWatchlist"
+                                >
+                                <button
+                                    @click="addToWatchlist"
+                                    class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm"
+                                >
+                                    加入
+                                </button>
+                            </div>
+                            <button
+                                v-else
+                                @click="showAddStock = true"
+                                class="w-full py-1 text-sm text-gray-400 hover:text-white border border-gray-600 rounded mt-2"
+                            >
+                                + 新增股票
+                            </button>
+                        </div>
+                    </div>
+
                     <h2 class="text-lg font-semibold mb-3">
                         符合條件 ({{ stocks.length }}/{{ allStocks.length }}檔)
                     </h2>

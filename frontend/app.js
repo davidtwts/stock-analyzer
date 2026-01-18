@@ -22,6 +22,12 @@ createApp({
         const rrFilterEnabled = ref(true);
         const filtersExpanded = ref(true);
 
+        // Watchlist state
+        const watchlist = ref([]);
+        const watchlistExpanded = ref(false);
+        const showAddStock = ref(false);
+        const newStockSymbol = ref('');
+
         let chart = null;
         let candleSeries = null;
         let maLines = {};
@@ -125,6 +131,52 @@ createApp({
             rrFilterEnabled.value = true;
         };
 
+        const fetchWatchlist = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/watchlist`);
+                const data = await res.json();
+                watchlist.value = data.watchlist;
+            } catch (err) {
+                console.error('Failed to fetch watchlist:', err);
+            }
+        };
+
+        const addToWatchlist = async () => {
+            if (!newStockSymbol.value) return;
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${newStockSymbol.value}`, {
+                    method: 'POST',
+                });
+                await fetchWatchlist();
+                newStockSymbol.value = '';
+                showAddStock.value = false;
+            } catch (err) {
+                console.error('Failed to add to watchlist:', err);
+            }
+        };
+
+        const removeFromWatchlist = async (symbol) => {
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${symbol}`, {
+                    method: 'DELETE',
+                });
+                await fetchWatchlist();
+            } catch (err) {
+                console.error('Failed to remove from watchlist:', err);
+            }
+        };
+
+        const toggleWatchlistAlert = async (symbol, enabled) => {
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${symbol}/alert?enabled=${enabled}`, {
+                    method: 'PATCH',
+                });
+                await fetchWatchlist();
+            } catch (err) {
+                console.error('Failed to toggle alert:', err);
+            }
+        };
+
         const loadChart = async (symbol) => {
             try {
                 const res = await fetch(`${API_BASE}/api/chart/${symbol}`);
@@ -217,6 +269,7 @@ createApp({
         onMounted(async () => {
             await fetchStocks();
             await fetchStatus();
+            await fetchWatchlist();
             refreshInterval = setInterval(async () => {
                 await fetchStocks();
                 await fetchStatus();
@@ -248,6 +301,13 @@ createApp({
             formatVolume,
             refresh,
             selectStock,
+            watchlist,
+            watchlistExpanded,
+            showAddStock,
+            newStockSymbol,
+            addToWatchlist,
+            removeFromWatchlist,
+            toggleWatchlistAlert,
         };
     },
 }).mount('#app');
