@@ -22,6 +22,7 @@ from backend.data_engine import DataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
 from backend.twse_fetcher import fetch_top_trading_value_stocks
+from backend.line_notifier import LineNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -36,11 +37,16 @@ screener = Screener(data_engine)
 scheduler = StockScheduler()
 cached_results: list[ScreenResult] = []
 last_update: Optional[datetime] = None
+previous_symbols: set[str] = set()
+line_notifier = LineNotifier()
+
+# Watchlist state (in production, this would be in a database)
+watchlist: dict[str, dict] = {}  # symbol -> {alert_enabled: bool, ...}
 
 
 def run_screening():
     """Run the stock screening process."""
-    global cached_results, last_update
+    global cached_results, last_update, previous_symbols
 
     # First try to get top trading value stocks from TWSE
     top_stocks = fetch_top_trading_value_stocks(TOP_TRADING_VALUE_COUNT)
@@ -54,6 +60,28 @@ def run_screening():
     cached_results = screener.screen_all(top_stocks)
     last_update = datetime.now()
     logger.info(f"Found {len(cached_results)} stocks matching criteria")
+
+    # Check for new matches and send LINE alerts
+    current_symbols = {r.symbol for r in cached_results}
+    new_symbols = current_symbols - previous_symbols
+
+    for result in cached_results:
+        if result.symbol in new_symbols:
+            stock_dict = {
+                "symbol": result.symbol,
+                "name": result.name,
+                "price": result.price,
+                "change_pct": result.change_pct,
+                "slope_5ma": result.slope_5ma,
+                "slope_10ma": result.slope_10ma,
+                "slope_20ma": result.slope_20ma,
+                "risk_reward": result.risk_reward_ratio,
+                "volume_ratio": result.volume_ratio,
+            }
+            line_notifier.send_stock_alert(stock_dict)
+            logger.info(f"Sent LINE alert for new match: {result.symbol}")
+
+    previous_symbols = current_symbols
 
 
 @asynccontextmanager
