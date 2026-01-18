@@ -12,6 +12,22 @@ createApp({
         const nextUpdate = ref(null);
         const marketStatus = ref('closed');
 
+        // Filter state
+        const allStocks = ref([]);  // Raw stocks from API
+        const slopeFilters = ref({
+            slope_5ma: 0.5,
+            slope_10ma: 0.3,
+            slope_20ma: 0.15,
+        });
+        const rrFilterEnabled = ref(true);
+        const filtersExpanded = ref(true);
+
+        // Watchlist state
+        const watchlist = ref([]);
+        const watchlistExpanded = ref(false);
+        const showAddStock = ref(false);
+        const newStockSymbol = ref('');
+
         let chart = null;
         let candleSeries = null;
         let maLines = {};
@@ -21,6 +37,26 @@ createApp({
             return marketStatus.value === 'open'
                 ? 'bg-green-600'
                 : 'bg-gray-600';
+        });
+
+        const filteredStocks = computed(() => {
+            return allStocks.value.filter(stock => {
+                // Slope filters
+                if (stock.slope_5ma !== null && stock.slope_5ma < slopeFilters.value.slope_5ma) {
+                    return false;
+                }
+                if (stock.slope_10ma !== null && stock.slope_10ma < slopeFilters.value.slope_10ma) {
+                    return false;
+                }
+                if (stock.slope_20ma !== null && stock.slope_20ma < slopeFilters.value.slope_20ma) {
+                    return false;
+                }
+                // R/R filter
+                if (rrFilterEnabled.value && stock.risk_reward < 3.0) {
+                    return false;
+                }
+                return true;
+            });
         });
 
         const formatTime = (isoString) => {
@@ -48,7 +84,7 @@ createApp({
             try {
                 const res = await fetch(`${API_BASE}/api/stocks`);
                 const data = await res.json();
-                stocks.value = data.stocks;
+                allStocks.value = data.stocks;
                 lastUpdate.value = data.updated_at;
                 marketStatus.value = data.market_status;
             } catch (err) {
@@ -84,6 +120,61 @@ createApp({
         const selectStock = async (stock) => {
             selectedStock.value = stock;
             await loadChart(stock.symbol);
+        };
+
+        const resetFilters = () => {
+            slopeFilters.value = {
+                slope_5ma: 0.5,
+                slope_10ma: 0.3,
+                slope_20ma: 0.15,
+            };
+            rrFilterEnabled.value = true;
+        };
+
+        const fetchWatchlist = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/watchlist`);
+                const data = await res.json();
+                watchlist.value = data.watchlist;
+            } catch (err) {
+                console.error('Failed to fetch watchlist:', err);
+            }
+        };
+
+        const addToWatchlist = async () => {
+            if (!newStockSymbol.value) return;
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${newStockSymbol.value}`, {
+                    method: 'POST',
+                });
+                await fetchWatchlist();
+                newStockSymbol.value = '';
+                showAddStock.value = false;
+            } catch (err) {
+                console.error('Failed to add to watchlist:', err);
+            }
+        };
+
+        const removeFromWatchlist = async (symbol) => {
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${symbol}`, {
+                    method: 'DELETE',
+                });
+                await fetchWatchlist();
+            } catch (err) {
+                console.error('Failed to remove from watchlist:', err);
+            }
+        };
+
+        const toggleWatchlistAlert = async (symbol, enabled) => {
+            try {
+                await fetch(`${API_BASE}/api/watchlist/${symbol}/alert?enabled=${enabled}`, {
+                    method: 'PATCH',
+                });
+                await fetchWatchlist();
+            } catch (err) {
+                console.error('Failed to toggle alert:', err);
+            }
         };
 
         const loadChart = async (symbol) => {
@@ -178,6 +269,7 @@ createApp({
         onMounted(async () => {
             await fetchStocks();
             await fetchStatus();
+            await fetchWatchlist();
             refreshInterval = setInterval(async () => {
                 await fetchStocks();
                 await fetchStatus();
@@ -193,7 +285,12 @@ createApp({
         });
 
         return {
-            stocks,
+            stocks: filteredStocks,
+            allStocks,
+            slopeFilters,
+            rrFilterEnabled,
+            filtersExpanded,
+            resetFilters,
             selectedStock,
             loading,
             lastUpdate,
@@ -204,6 +301,13 @@ createApp({
             formatVolume,
             refresh,
             selectStock,
+            watchlist,
+            watchlistExpanded,
+            showAddStock,
+            newStockSymbol,
+            addToWatchlist,
+            removeFromWatchlist,
+            toggleWatchlistAlert,
         };
     },
 }).mount('#app');

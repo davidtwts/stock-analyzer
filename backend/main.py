@@ -21,7 +21,8 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 from backend.data_engine import DataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
-from backend.twse_fetcher import fetch_top_trading_value_stocks
+from backend.twse_sector_fetcher import fetch_top_trading_value_stocks
+from backend.line_notifier import LineNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -36,11 +37,16 @@ screener = Screener(data_engine)
 scheduler = StockScheduler()
 cached_results: list[ScreenResult] = []
 last_update: Optional[datetime] = None
+previous_symbols: set[str] = set()
+line_notifier = LineNotifier()
+
+# Watchlist state (in production, this would be in a database)
+watchlist: dict[str, dict] = {}  # symbol -> {alert_enabled: bool, ...}
 
 
 def run_screening():
     """Run the stock screening process."""
-    global cached_results, last_update
+    global cached_results, last_update, previous_symbols
 
     # First try to get top trading value stocks from TWSE
     top_stocks = fetch_top_trading_value_stocks(TOP_TRADING_VALUE_COUNT)
@@ -54,6 +60,28 @@ def run_screening():
     cached_results = screener.screen_all(top_stocks)
     last_update = datetime.now()
     logger.info(f"Found {len(cached_results)} stocks matching criteria")
+
+    # Check for new matches and send LINE alerts
+    current_symbols = {r.symbol for r in cached_results}
+    new_symbols = current_symbols - previous_symbols
+
+    for result in cached_results:
+        if result.symbol in new_symbols:
+            stock_dict = {
+                "symbol": result.symbol,
+                "name": result.name,
+                "price": result.price,
+                "change_pct": result.change_pct,
+                "slope_5ma": result.slope_5ma,
+                "slope_10ma": result.slope_10ma,
+                "slope_20ma": result.slope_20ma,
+                "risk_reward": result.risk_reward_ratio,
+                "volume_ratio": result.volume_ratio,
+            }
+            line_notifier.send_stock_alert(stock_dict)
+            logger.info(f"Sent LINE alert for new match: {result.symbol}")
+
+    previous_symbols = current_symbols
 
 
 @asynccontextmanager
@@ -121,6 +149,9 @@ async def get_stocks():
                 "volume": r.volume,
                 "avg_volume": r.avg_volume,
                 "volume_ratio": r.volume_ratio,
+                "slope_5ma": r.slope_5ma,
+                "slope_10ma": r.slope_10ma,
+                "slope_20ma": r.slope_20ma,
             }
             for r in cached_results
         ],
@@ -193,6 +224,51 @@ async def refresh():
     """Manually trigger a refresh."""
     run_screening()
     return {"status": "ok", "updated_at": last_update.isoformat()}
+
+
+@app.get("/api/watchlist")
+async def get_watchlist():
+    """Get current watchlist."""
+    return {"watchlist": list(watchlist.values())}
+
+
+@app.post("/api/watchlist/{symbol}")
+async def add_to_watchlist(symbol: str, alert_enabled: bool = True):
+    """Add a stock to watchlist."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    watchlist[symbol] = {
+        "symbol": symbol,
+        "name": STOCK_NAMES.get(symbol, symbol),
+        "alert_enabled": alert_enabled,
+    }
+    return {"status": "ok", "item": watchlist[symbol]}
+
+
+@app.delete("/api/watchlist/{symbol}")
+async def remove_from_watchlist(symbol: str):
+    """Remove a stock from watchlist."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    if symbol in watchlist:
+        del watchlist[symbol]
+        return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Stock not in watchlist")
+
+
+@app.patch("/api/watchlist/{symbol}/alert")
+async def toggle_watchlist_alert(symbol: str, enabled: bool):
+    """Toggle alert for a watchlist item."""
+    if not symbol.endswith(".TW"):
+        symbol = f"{symbol}.TW"
+
+    if symbol not in watchlist:
+        raise HTTPException(status_code=404, detail="Stock not in watchlist")
+
+    watchlist[symbol]["alert_enabled"] = enabled
+    return {"status": "ok", "item": watchlist[symbol]}
 
 
 # Serve frontend static files

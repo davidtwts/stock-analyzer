@@ -33,8 +33,119 @@
         <main class="flex h-[calc(100vh-73px)]">
             <aside class="w-80 bg-gray-800 border-r border-gray-700 overflow-y-auto">
                 <div class="p-4">
+                    <!-- Filter Panel -->
+                    <div class="mb-4 bg-gray-700 rounded-lg overflow-hidden">
+                        <button @click="filtersExpanded = !filtersExpanded" class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-600">
+                            <span class="font-medium">斜率篩選</span>
+                            <span>{{ filtersExpanded ? '▼' : '▶' }}</span>
+                        </button>
+                        <div v-show="filtersExpanded" class="px-3 pb-3 space-y-3">
+                            <!-- 5MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>5MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_5ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_5ma" min="0" max="1.5" step="0.05" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- 10MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>10MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_10ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_10ma" min="0" max="1.0" step="0.05" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- 20MA Slope Slider -->
+                            <div>
+                                <label class="flex justify-between text-sm text-gray-300">
+                                    <span>20MA斜率</span>
+                                    <span>≥ {{ slopeFilters.slope_20ma.toFixed(2) }}%</span>
+                                </label>
+                                <input type="range" v-model.number="slopeFilters.slope_20ma" min="0" max="0.5" step="0.01" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                            <!-- R/R Toggle -->
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-300">損益比 ≥ 3.0</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="rrFilterEnabled" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                            <!-- Reset Button -->
+                            <button @click="resetFilters" class="w-full py-1 text-sm bg-gray-600 hover:bg-gray-500 rounded">
+                                重置篩選條件
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Watchlist Panel -->
+                    <div class="mb-4 bg-gray-700 rounded-lg overflow-hidden">
+                        <button
+                            @click="watchlistExpanded = !watchlistExpanded"
+                            class="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-gray-600"
+                        >
+                            <span class="font-medium">⭐ 自選股監控</span>
+                            <span>{{ watchlistExpanded ? '▼' : '▶' }}</span>
+                        </button>
+
+                        <div v-show="watchlistExpanded" class="px-3 pb-3">
+                            <div v-if="watchlist.length === 0" class="text-sm text-gray-400 py-2">
+                                尚無自選股
+                            </div>
+                            <div v-else class="space-y-2 mb-2">
+                                <div
+                                    v-for="item in watchlist"
+                                    :key="item.symbol"
+                                    class="flex items-center justify-between bg-gray-600 rounded px-2 py-1"
+                                >
+                                    <span class="text-sm">
+                                        {{ item.symbol.replace('.TW', '') }} {{ item.name }}
+                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            @click="toggleWatchlistAlert(item.symbol, !item.alert_enabled)"
+                                            :class="item.alert_enabled ? 'text-yellow-400' : 'text-gray-500'"
+                                            class="text-lg"
+                                        >
+                                            {{ item.alert_enabled ? '🔔' : '🔕' }}
+                                        </button>
+                                        <button
+                                            @click="removeFromWatchlist(item.symbol)"
+                                            class="text-red-400 hover:text-red-300"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="showAddStock" class="flex gap-2 mt-2">
+                                <input
+                                    v-model="newStockSymbol"
+                                    placeholder="股票代號"
+                                    class="flex-1 bg-gray-600 rounded px-2 py-1 text-sm"
+                                    @keyup.enter="addToWatchlist"
+                                >
+                                <button
+                                    @click="addToWatchlist"
+                                    class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm"
+                                >
+                                    加入
+                                </button>
+                            </div>
+                            <button
+                                v-else
+                                @click="showAddStock = true"
+                                class="w-full py-1 text-sm text-gray-400 hover:text-white border border-gray-600 rounded mt-2"
+                            >
+                                + 新增股票
+                            </button>
+                        </div>
+                    </div>
+
                     <h2 class="text-lg font-semibold mb-3">
-                        📋 符合條件 ({{ stocks.length }}檔)
+                        符合條件 ({{ stocks.length }}/{{ allStocks.length }}檔)
                     </h2>
                     <div v-if="loading" class="text-center py-8 text-gray-400">
                         載入中...

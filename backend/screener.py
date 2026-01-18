@@ -37,6 +37,9 @@ class ScreenResult:
     volume: int
     avg_volume: float
     volume_ratio: float
+    slope_5ma: Optional[float] = None
+    slope_10ma: Optional[float] = None
+    slope_20ma: Optional[float] = None
 
 
 class Screener:
@@ -178,6 +181,49 @@ class Screener:
             "risk_reward_ratio": round(risk_reward_ratio, 2),
         }
 
+    def calculate_ma_slopes(self, df: pd.DataFrame) -> dict:
+        """
+        Calculate MA slopes as percentage change per day.
+
+        Lookback periods match MA periods:
+        - 5MA: 5 days
+        - 10MA: 10 days
+        - 20MA: 20 days
+
+        Args:
+            df: DataFrame with ma5, ma10, ma20 columns
+
+        Returns:
+            Dict with slope_5ma, slope_10ma, slope_20ma (% per day)
+        """
+        slopes = {
+            "slope_5ma": None,
+            "slope_10ma": None,
+            "slope_20ma": None,
+        }
+
+        ma_configs = [
+            ("ma5", "slope_5ma", 5),
+            ("ma10", "slope_10ma", 10),
+            ("ma20", "slope_20ma", 20),
+        ]
+
+        for ma_col, slope_key, lookback in ma_configs:
+            if ma_col not in df.columns or len(df) < lookback + 1:
+                continue
+
+            current = df.iloc[-1][ma_col]
+            past = df.iloc[-(lookback + 1)][ma_col]
+
+            if pd.isna(current) or pd.isna(past) or past == 0:
+                continue
+
+            # Percentage change per day
+            slope = ((current - past) / past / lookback) * 100
+            slopes[slope_key] = round(slope, 3)
+
+        return slopes
+
     def screen_stock(self, symbol: str) -> Optional[ScreenResult]:
         """
         Screen a single stock.
@@ -213,12 +259,8 @@ class Screener:
             logger.debug(f"{symbol}: MA alignment not met")
             return None
 
-        # Calculate risk/reward
+        # Calculate risk/reward (no filtering - client handles this now)
         rr = self.calculate_risk_reward(df, current_price)
-
-        if rr["risk_reward_ratio"] < MIN_RISK_REWARD:
-            logger.debug(f"{symbol}: R/R ratio {rr['risk_reward_ratio']} < {MIN_RISK_REWARD}")
-            return None
 
         # Calculate change percentage
         if len(df) >= 2:
@@ -226,6 +268,9 @@ class Screener:
             change_pct = ((current_price - prev_close) / prev_close) * 100
         else:
             change_pct = 0
+
+        # Calculate MA slopes
+        slopes = self.calculate_ma_slopes(df)
 
         return ScreenResult(
             symbol=symbol,
@@ -242,6 +287,9 @@ class Screener:
             volume=vol["volume"],
             avg_volume=vol["avg_volume"],
             volume_ratio=vol["volume_ratio"],
+            slope_5ma=slopes["slope_5ma"],
+            slope_10ma=slopes["slope_10ma"],
+            slope_20ma=slopes["slope_20ma"],
         )
 
     def screen_all(self, symbols: list[str]) -> list[ScreenResult]:
