@@ -12,6 +12,16 @@ createApp({
         const nextUpdate = ref(null);
         const marketStatus = ref('closed');
 
+        // Filter state
+        const allStocks = ref([]);  // Raw stocks from API
+        const slopeFilters = ref({
+            slope_5ma: 0.5,
+            slope_10ma: 0.3,
+            slope_20ma: 0.15,
+        });
+        const rrFilterEnabled = ref(true);
+        const filtersExpanded = ref(true);
+
         let chart = null;
         let candleSeries = null;
         let maLines = {};
@@ -21,6 +31,26 @@ createApp({
             return marketStatus.value === 'open'
                 ? 'bg-green-600'
                 : 'bg-gray-600';
+        });
+
+        const filteredStocks = computed(() => {
+            return allStocks.value.filter(stock => {
+                // Slope filters
+                if (stock.slope_5ma !== null && stock.slope_5ma < slopeFilters.value.slope_5ma) {
+                    return false;
+                }
+                if (stock.slope_10ma !== null && stock.slope_10ma < slopeFilters.value.slope_10ma) {
+                    return false;
+                }
+                if (stock.slope_20ma !== null && stock.slope_20ma < slopeFilters.value.slope_20ma) {
+                    return false;
+                }
+                // R/R filter
+                if (rrFilterEnabled.value && stock.risk_reward < 3.0) {
+                    return false;
+                }
+                return true;
+            });
         });
 
         const formatTime = (isoString) => {
@@ -48,7 +78,7 @@ createApp({
             try {
                 const res = await fetch(`${API_BASE}/api/stocks`);
                 const data = await res.json();
-                stocks.value = data.stocks;
+                allStocks.value = data.stocks;
                 lastUpdate.value = data.updated_at;
                 marketStatus.value = data.market_status;
             } catch (err) {
@@ -84,6 +114,15 @@ createApp({
         const selectStock = async (stock) => {
             selectedStock.value = stock;
             await loadChart(stock.symbol);
+        };
+
+        const resetFilters = () => {
+            slopeFilters.value = {
+                slope_5ma: 0.5,
+                slope_10ma: 0.3,
+                slope_20ma: 0.15,
+            };
+            rrFilterEnabled.value = true;
         };
 
         const loadChart = async (symbol) => {
@@ -193,7 +232,12 @@ createApp({
         });
 
         return {
-            stocks,
+            stocks: filteredStocks,
+            allStocks,
+            slopeFilters,
+            rrFilterEnabled,
+            filtersExpanded,
+            resetFilters,
             selectedStock,
             loading,
             lastUpdate,
