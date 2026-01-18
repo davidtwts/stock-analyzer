@@ -259,12 +259,8 @@ class Screener:
             logger.debug(f"{symbol}: MA alignment not met")
             return None
 
-        # Calculate risk/reward
+        # Calculate risk/reward (no filtering - client handles this now)
         rr = self.calculate_risk_reward(df, current_price)
-
-        if rr["risk_reward_ratio"] < MIN_RISK_REWARD:
-            logger.debug(f"{symbol}: R/R ratio {rr['risk_reward_ratio']} < {MIN_RISK_REWARD}")
-            return None
 
         # Calculate change percentage
         if len(df) >= 2:
