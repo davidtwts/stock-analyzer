@@ -1,5 +1,5 @@
 # backend/line_notifier.py
-"""LINE Notify integration for stock alerts."""
+"""LINE Messaging API integration for stock alerts."""
 
 import logging
 import os
@@ -9,7 +9,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-LINE_NOTIFY_URL = "https://notify-api.line.me/api/notify"
+# LINE Messaging API endpoint
+LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
 
 def format_stock_alert(stock: dict) -> str:
@@ -37,31 +38,53 @@ def format_volume_spike_alert(stock: dict, volume_5min: int, volume_ratio: float
 
 
 class LineNotifier:
-    """LINE Notify client."""
+    """LINE Messaging API client."""
 
-    def __init__(self, token: Optional[str] = None):
-        """Initialize LINE Notifier."""
-        self.token = token or os.environ.get("LINE_NOTIFY_TOKEN")
+    def __init__(self, channel_token: Optional[str] = None, user_id: Optional[str] = None):
+        """
+        Initialize LINE Messaging API client.
+
+        Args:
+            channel_token: LINE Channel Access Token (or LINE_CHANNEL_TOKEN env var)
+            user_id: LINE User ID to send messages to (or LINE_USER_ID env var)
+        """
+        self.channel_token = channel_token or os.environ.get("LINE_CHANNEL_TOKEN")
+        self.user_id = user_id or os.environ.get("LINE_USER_ID")
 
     def send(self, message: str) -> bool:
-        """Send a notification via LINE Notify."""
-        if not self.token:
-            logger.debug("LINE_NOTIFY_TOKEN not set, skipping notification")
+        """Send a push message via LINE Messaging API."""
+        if not self.channel_token:
+            logger.debug("LINE_CHANNEL_TOKEN not set, skipping notification")
             return False
 
-        headers = {"Authorization": f"Bearer {self.token}"}
-        data = {"message": message}
+        if not self.user_id:
+            logger.debug("LINE_USER_ID not set, skipping notification")
+            return False
+
+        headers = {
+            "Authorization": f"Bearer {self.channel_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "to": self.user_id,
+            "messages": [
+                {
+                    "type": "text",
+                    "text": message,
+                }
+            ],
+        }
 
         try:
-            response = requests.post(LINE_NOTIFY_URL, headers=headers, data=data)
+            response = requests.post(LINE_PUSH_URL, headers=headers, json=payload, timeout=10)
             if response.status_code == 200:
-                logger.info("LINE notification sent successfully")
+                logger.info("LINE message sent successfully")
                 return True
             else:
-                logger.error(f"LINE notification failed: {response.status_code}")
+                logger.error(f"LINE message failed: {response.status_code} - {response.text}")
                 return False
         except Exception as e:
-            logger.error(f"LINE notification error: {e}")
+            logger.error(f"LINE message error: {e}")
             return False
 
     def send_stock_alert(self, stock: dict) -> bool:

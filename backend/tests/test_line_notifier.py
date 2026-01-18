@@ -1,5 +1,5 @@
 # backend/tests/test_line_notifier.py
-"""Tests for LINE Notify integration."""
+"""Tests for LINE Messaging API integration."""
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -7,7 +7,7 @@ from backend.line_notifier import LineNotifier, format_stock_alert
 
 
 class TestLineNotifier:
-    """Test LINE notification functionality."""
+    """Test LINE Messaging API functionality."""
 
     def test_format_stock_alert(self):
         """Test alert message formatting."""
@@ -30,21 +30,30 @@ class TestLineNotifier:
         assert "1.25%" in message
         assert "0.52%" in message
 
-    @patch('requests.post')
+    @patch('backend.line_notifier.requests.post')
     def test_send_notification_success(self, mock_post):
         """Test successful notification send."""
         mock_post.return_value = MagicMock(status_code=200)
 
-        notifier = LineNotifier("test_token")
+        notifier = LineNotifier(channel_token="test_token", user_id="test_user")
         result = notifier.send("Test message")
 
         assert result is True
         mock_post.assert_called_once()
 
-    @patch('requests.post')
+    @patch('backend.line_notifier.requests.post')
     def test_send_notification_no_token(self, mock_post):
-        """Test notification skipped when no token."""
-        notifier = LineNotifier(None)
+        """Test notification skipped when no channel token."""
+        notifier = LineNotifier(channel_token=None, user_id="test_user")
+        result = notifier.send("Test message")
+
+        assert result is False
+        mock_post.assert_not_called()
+
+    @patch('backend.line_notifier.requests.post')
+    def test_send_notification_no_user_id(self, mock_post):
+        """Test notification skipped when no user ID."""
+        notifier = LineNotifier(channel_token="test_token", user_id=None)
         result = notifier.send("Test message")
 
         assert result is False
