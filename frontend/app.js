@@ -3,6 +3,22 @@ const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:80
 
 const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
 
+// Helper to get/set user token
+const getUserToken = () => localStorage.getItem('user_token');
+const setUserToken = (token) => localStorage.setItem('user_token', token);
+
+// Helper for API calls with user token
+const apiCall = async (url, options = {}) => {
+    const token = getUserToken();
+    const headers = {
+        ...options.headers,
+    };
+    if (token) {
+        headers['X-User-Token'] = token;
+    }
+    return fetch(url, { ...options, headers });
+};
+
 createApp({
     setup() {
         const stocks = ref([]);
@@ -27,6 +43,11 @@ createApp({
         const watchlistExpanded = ref(false);
         const showAddStock = ref(false);
         const newStockSymbol = ref('');
+
+        // LINE linking state
+        const lineLinked = ref(false);
+        const linkingCode = ref('');
+        const showLinkingPanel = ref(false);
 
         let chart = null;
         let candleSeries = null;
@@ -131,9 +152,42 @@ createApp({
             rrFilterEnabled.value = true;
         };
 
+        // User registration and LINE linking
+        const registerUser = async () => {
+            try {
+                const res = await fetch(`${API_BASE}/api/user/register`, { method: 'POST' });
+                const data = await res.json();
+                setUserToken(data.user_token);
+                return data.user_token;
+            } catch (err) {
+                console.error('Failed to register user:', err);
+            }
+        };
+
+        const checkLineStatus = async () => {
+            try {
+                const res = await apiCall(`${API_BASE}/api/user/profile`);
+                const data = await res.json();
+                lineLinked.value = data.linked;
+            } catch (err) {
+                console.error('Failed to check LINE status:', err);
+            }
+        };
+
+        const getLinkingCode = async () => {
+            try {
+                const res = await apiCall(`${API_BASE}/api/user/link-code`);
+                const data = await res.json();
+                linkingCode.value = data.code;
+                showLinkingPanel.value = true;
+            } catch (err) {
+                console.error('Failed to get linking code:', err);
+            }
+        };
+
         const fetchWatchlist = async () => {
             try {
-                const res = await fetch(`${API_BASE}/api/watchlist`);
+                const res = await apiCall(`${API_BASE}/api/watchlist`);
                 const data = await res.json();
                 watchlist.value = data.watchlist;
             } catch (err) {
@@ -144,7 +198,7 @@ createApp({
         const addToWatchlist = async () => {
             if (!newStockSymbol.value) return;
             try {
-                await fetch(`${API_BASE}/api/watchlist/${newStockSymbol.value}`, {
+                await apiCall(`${API_BASE}/api/watchlist/${newStockSymbol.value}`, {
                     method: 'POST',
                 });
                 await fetchWatchlist();
@@ -157,7 +211,7 @@ createApp({
 
         const removeFromWatchlist = async (symbol) => {
             try {
-                await fetch(`${API_BASE}/api/watchlist/${symbol}`, {
+                await apiCall(`${API_BASE}/api/watchlist/${symbol}`, {
                     method: 'DELETE',
                 });
                 await fetchWatchlist();
@@ -168,7 +222,7 @@ createApp({
 
         const toggleWatchlistAlert = async (symbol, enabled) => {
             try {
-                await fetch(`${API_BASE}/api/watchlist/${symbol}/alert?enabled=${enabled}`, {
+                await apiCall(`${API_BASE}/api/watchlist/${symbol}/alert?enabled=${enabled}`, {
                     method: 'PATCH',
                 });
                 await fetchWatchlist();
@@ -267,13 +321,24 @@ createApp({
         };
 
         onMounted(async () => {
+            // Register user if no token exists
+            if (!getUserToken()) {
+                await registerUser();
+            }
+
             await fetchStocks();
             await fetchStatus();
             await fetchWatchlist();
+            await checkLineStatus();
+
             refreshInterval = setInterval(async () => {
                 await fetchStocks();
                 await fetchStatus();
             }, 300000);
+
+            // Check LINE status every minute
+            setInterval(checkLineStatus, 60000);
+
             window.addEventListener('resize', handleResize);
         });
 
@@ -308,6 +373,11 @@ createApp({
             addToWatchlist,
             removeFromWatchlist,
             toggleWatchlistAlert,
+            // LINE linking
+            lineLinked,
+            linkingCode,
+            showLinkingPanel,
+            getLinkingCode,
         };
     },
 }).mount('#app');

@@ -141,6 +141,30 @@
                             >
                                 + 新增股票
                             </button>
+
+                            <!-- LINE Linking Section -->
+                            <div class="mt-3 pt-3 border-t border-gray-600">
+                                <div v-if="lineLinked" class="flex items-center gap-2 text-green-400 text-sm">
+                                    <span>✅</span>
+                                    <span>LINE 已綁定</span>
+                                </div>
+                                <div v-else>
+                                    <button
+                                        v-if="!showLinkingPanel"
+                                        @click="getLinkingCode"
+                                        class="w-full py-1 text-sm bg-green-600 hover:bg-green-700 rounded"
+                                    >
+                                        🔗 綁定 LINE 接收通知
+                                    </button>
+                                    <div v-else class="text-center">
+                                        <p class="text-sm text-gray-400 mb-2">傳送此驗證碼給 LINE Bot：</p>
+                                        <div class="text-2xl font-mono font-bold text-green-400 bg-gray-600 rounded py-2 mb-2">
+                                            {{ linkingCode }}
+                                        </div>
+                                        <p class="text-xs text-gray-500">驗證碼 5 分鐘內有效</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
