@@ -121,6 +121,9 @@ async def get_stocks():
                 "volume": r.volume,
                 "avg_volume": r.avg_volume,
                 "volume_ratio": r.volume_ratio,
+                "slope_5ma": r.slope_5ma,
+                "slope_10ma": r.slope_10ma,
+                "slope_20ma": r.slope_20ma,
             }
             for r in cached_results
         ],
