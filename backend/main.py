@@ -21,7 +21,7 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 from backend.data_engine import DataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
-from backend.twse_fetcher import fetch_top_trading_value_stocks
+from backend.twse_sector_fetcher import fetch_top_trading_value_stocks
 from backend.line_notifier import LineNotifier
 
 # Configure logging
