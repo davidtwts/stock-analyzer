@@ -302,9 +302,15 @@ class Screener:
         Returns:
             List of ScreenResult for stocks passing criteria
         """
+        # Filter out quarantined symbols
+        active_symbols = self.data_engine._health.get_active_symbols(symbols)
+        skipped = len(symbols) - len(active_symbols)
+        if skipped > 0:
+            logger.info(f"Screening {len(active_symbols)} active symbols (skipped {skipped} quarantined)")
+
         results = []
 
-        for symbol in symbols:
+        for symbol in active_symbols:
             try:
                 result = self.screen_stock(symbol)
                 if result:

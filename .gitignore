@@ -24,6 +24,7 @@ htmlcov/
 
 # Data
 data/*.json
+data/*.db
 !data/.gitkeep
 
 # Logs

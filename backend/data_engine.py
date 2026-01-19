@@ -8,6 +8,7 @@ import pandas as pd
 import yfinance as yf
 
 from backend.config import MA_PERIODS, FETCH_PERIOD
+from backend.ticker_health import TickerHealth
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ class DataEngine:
     def __init__(self):
         """Initialize the data engine."""
         self._cache: dict[str, pd.DataFrame] = {}
+        self._health = TickerHealth()
 
     def fetch_stock(self, symbol: str, period: str = FETCH_PERIOD) -> Optional[pd.DataFrame]:
         """
@@ -36,16 +38,19 @@ class DataEngine:
 
             if df.empty:
                 logger.warning(f"No data returned for {symbol}")
+                self._health.record_failure(symbol, "No data returned")
                 return None
 
             # Reset index to make Date a column
             df = df.reset_index()
 
             logger.info(f"Fetched {len(df)} rows for {symbol}")
+            self._health.record_success(symbol)
             return df
 
         except Exception as e:
             logger.error(f"Failed to fetch {symbol}: {e}")
+            self._health.record_failure(symbol, str(e))
             return None
 
     def calculate_moving_averages(self, df: pd.DataFrame) -> pd.DataFrame:
