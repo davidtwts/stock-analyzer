@@ -28,10 +28,12 @@ from backend.scheduler import StockScheduler
 from backend.twse_sector_fetcher import fetch_top_trading_value_stocks
 from backend.line_notifier import LineNotifier
 
-# Configure logging
+# Configure logging to stdout (Railway classifies stderr as error)
+import sys
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,  # Output to stdout instead of stderr
 )
 logger = logging.getLogger(__name__)
 
