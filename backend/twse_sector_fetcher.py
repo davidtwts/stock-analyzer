@@ -3,6 +3,8 @@
 
 import json
 import logging
+import random
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -10,6 +12,19 @@ from typing import Optional
 import requests
 
 logger = logging.getLogger(__name__)
+
+# Session 偽裝：模擬真實瀏覽器
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+]
+
+# 防封鎖配置
+REQUEST_DELAY_MIN = 1.0   # TWSE 較寬鬆，可以短一點
+REQUEST_DELAY_MAX = 3.0
+MAX_RETRIES = 3
+BACKOFF_FACTOR = 2
 
 # TWSE sector codes
 SECTOR_CODES = {
@@ -32,6 +47,31 @@ class TwseSectorFetcher:
     def __init__(self):
         """Initialize the fetcher."""
         self._cache: Optional[dict] = None
+        self._session = self._create_session()
+        self._last_request_time = 0.0
+
+    def _create_session(self) -> requests.Session:
+        """創建帶偽裝的 Session."""
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Referer": "https://www.twse.com.tw/",
+        })
+        return session
+
+    def _random_delay(self):
+        """隨機延遲，避免固定間隔被偵測."""
+        delay = random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX)
+        elapsed = time.time() - self._last_request_time
+        if elapsed < delay:
+            sleep_time = delay - elapsed
+            logger.debug(f"TWSE rate limiting: sleeping {sleep_time:.2f}s")
+            time.sleep(sleep_time)
+        self._last_request_time = time.time()
 
     def is_cache_expired(self) -> bool:
         """Check if cache file is expired or missing."""
@@ -49,7 +89,7 @@ class TwseSectorFetcher:
 
     def fetch_sector(self, sector_name: str) -> list[str]:
         """
-        Fetch stocks for a specific sector from TWSE.
+        Fetch stocks for a specific sector from TWSE with retry.
 
         Args:
             sector_name: Chinese sector name
@@ -62,29 +102,62 @@ class TwseSectorFetcher:
             logger.warning(f"Unknown sector: {sector_name}")
             return []
 
-        try:
-            url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json&type={sector_code}"
-            response = requests.get(url, timeout=10)
+        for attempt in range(MAX_RETRIES):
+            try:
+                # 隨機延遲 + 速率限制
+                self._random_delay()
 
-            if response.status_code != 200:
-                logger.error(f"TWSE request failed: {response.status_code}")
+                # 偶爾更換 User-Agent
+                if random.random() < 0.3:
+                    self._session.headers["User-Agent"] = random.choice(USER_AGENTS)
+
+                url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json&type={sector_code}"
+                response = self._session.get(url, timeout=15)
+
+                # 處理速率限制
+                if response.status_code == 429:
+                    backoff_time = REQUEST_DELAY_MAX * (BACKOFF_FACTOR ** attempt)
+                    logger.warning(
+                        f"TWSE rate limited, attempt {attempt + 1}/{MAX_RETRIES}. "
+                        f"Backing off {backoff_time:.1f}s"
+                    )
+                    time.sleep(backoff_time)
+                    continue
+
+                if response.status_code != 200:
+                    logger.error(f"TWSE request failed: {response.status_code}")
+                    return []
+
+                data = response.json()
+                stocks = []
+
+                for row in data.get("data", []):
+                    if len(row) >= 1:
+                        symbol = row[0].strip()
+                        # 過濾 ETF (00)、權證 (01-08)、特別股
+                        if symbol.startswith(('00', '01', '02', '03', '04', '05', '06', '07', '08')):
+                            continue
+                        if len(symbol) > 4:  # 過濾 2330-KY 或特別股
+                            continue
+                        if symbol.isdigit():
+                            stocks.append(f"{symbol}.TW")
+
+                logger.info(f"Fetched {len(stocks)} stocks for sector {sector_name}")
+                return stocks
+
+            except Exception as e:
+                error_str = str(e).lower()
+                if "timeout" in error_str or "connection" in error_str:
+                    backoff_time = REQUEST_DELAY_MAX * (BACKOFF_FACTOR ** attempt)
+                    logger.warning(f"TWSE connection error, retrying in {backoff_time:.1f}s: {e}")
+                    time.sleep(backoff_time)
+                    continue
+
+                logger.error(f"Error fetching sector {sector_name}: {e}")
                 return []
 
-            data = response.json()
-            stocks = []
-
-            for row in data.get("data", []):
-                if len(row) >= 1:
-                    symbol = row[0].strip()
-                    if symbol.isdigit() and not symbol.startswith("00"):
-                        stocks.append(f"{symbol}.TW")
-
-            logger.info(f"Fetched {len(stocks)} stocks for sector {sector_name}")
-            return stocks
-
-        except Exception as e:
-            logger.error(f"Error fetching sector {sector_name}: {e}")
-            return []
+        logger.error(f"All {MAX_RETRIES} attempts failed for sector {sector_name}")
+        return []
 
     def fetch_all_sectors(self) -> dict[str, list[str]]:
         """Fetch all configured sectors."""
@@ -161,21 +234,36 @@ def fetch_top_trading_value_stocks(count: int = 100) -> list[str]:
     if symbols:
         return symbols[:count] if len(symbols) > count else symbols
 
-    # Fallback: try original TWSE API
-    try:
-        url = "https://www.twse.com.tw/exchangeReport/MI_INDEX20?response=json"
-        response = requests.get(url, timeout=10)
+    # Fallback: try original TWSE API (使用 fetcher 的 session)
+    for attempt in range(MAX_RETRIES):
+        try:
+            time.sleep(random.uniform(REQUEST_DELAY_MIN, REQUEST_DELAY_MAX))
 
-        if response.status_code == 200:
-            data = response.json()
-            stocks = []
-            for row in data.get("data", [])[:count]:
-                if len(row) >= 1:
-                    symbol = row[0].strip()
-                    if symbol.isdigit() and not symbol.startswith("00"):
-                        stocks.append(f"{symbol}.TW")
-            return stocks
-    except Exception as e:
-        logger.error(f"Error fetching top trading stocks: {e}")
+            url = "https://www.twse.com.tw/exchangeReport/MI_INDEX20?response=json"
+            response = fetcher._session.get(url, timeout=15)
+
+            if response.status_code == 429:
+                backoff_time = REQUEST_DELAY_MAX * (BACKOFF_FACTOR ** attempt)
+                logger.warning(f"TWSE fallback rate limited, backing off {backoff_time:.1f}s")
+                time.sleep(backoff_time)
+                continue
+
+            if response.status_code == 200:
+                data = response.json()
+                stocks = []
+                for row in data.get("data", [])[:count]:
+                    if len(row) >= 1:
+                        symbol = row[0].strip()
+                        # 過濾 ETF (00)、權證 (01-08)、特別股
+                        if symbol.startswith(('00', '01', '02', '03', '04', '05', '06', '07', '08')):
+                            continue
+                        if len(symbol) > 4:  # 過濾 2330-KY 或特別股
+                            continue
+                        if symbol.isdigit():
+                            stocks.append(f"{symbol}.TW")
+                return stocks
+
+        except Exception as e:
+            logger.error(f"Error fetching top trading stocks: {e}")
 
     return []
