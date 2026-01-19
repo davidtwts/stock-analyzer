@@ -210,12 +210,30 @@ async def get_chart(symbol: str):
 @app.get("/api/status")
 async def get_status():
     """Get system status."""
+    health_summary = data_engine._health.get_status_summary()
     return {
         "last_update": last_update.isoformat() if last_update else None,
         "next_update": scheduler.next_update.isoformat() if scheduler.next_update else None,
         "market_status": "open" if scheduler.is_market_open() else "closed",
         "stocks_monitored": len(TAIWAN_50),
         "stocks_matched": len(cached_results),
+        "ticker_health": health_summary,
+    }
+
+
+@app.post("/api/reset-quarantine")
+async def reset_quarantine():
+    """
+    Reset all quarantined tickers to active status.
+
+    Use this after a systemic failure (API outage) incorrectly
+    quarantined all tickers.
+    """
+    count = data_engine._health.reset_all_quarantine()
+    return {
+        "status": "ok",
+        "reset_count": count,
+        "message": f"Reset {count} quarantined symbols to active",
     }
 
 
