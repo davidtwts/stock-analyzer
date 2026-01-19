@@ -76,7 +76,7 @@ class TwseSectorFetcher:
             for row in data.get("data", []):
                 if len(row) >= 1:
                     symbol = row[0].strip()
-                    if symbol.isdigit():
+                    if symbol.isdigit() and not symbol.startswith("00"):
                         stocks.append(f"{symbol}.TW")
 
             logger.info(f"Fetched {len(stocks)} stocks for sector {sector_name}")
@@ -172,7 +172,7 @@ def fetch_top_trading_value_stocks(count: int = 100) -> list[str]:
             for row in data.get("data", [])[:count]:
                 if len(row) >= 1:
                     symbol = row[0].strip()
-                    if symbol.isdigit():
+                    if symbol.isdigit() and not symbol.startswith("00"):
                         stocks.append(f"{symbol}.TW")
             return stocks
     except Exception as e:
