@@ -254,10 +254,10 @@ class Screener:
             logger.debug(f"{symbol}: Volume criteria not met (avg={vol['avg_volume']}, ratio={vol['volume_ratio']})")
             return None
 
-        # Check MA alignment
-        if not self.check_ma_alignment(df):
-            logger.debug(f"{symbol}: MA alignment not met")
-            return None
+        # Check MA alignment (disabled for now - too strict)
+        # if not self.check_ma_alignment(df):
+        #     logger.debug(f"{symbol}: MA alignment not met")
+        #     return None
 
         # Calculate risk/reward (no filtering - client handles this now)
         rr = self.calculate_risk_reward(df, current_price)
