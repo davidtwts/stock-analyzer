@@ -255,7 +255,35 @@ class TwseSectorFetcher:
                 continue
 
         logger.info(f"Fetched {len(stocks)} stocks from BWIBBU")
+
+        # Prioritize high-volume stocks (Taiwan 50 first)
+        stocks = self._prioritize_high_volume(stocks)
         return stocks
+
+    def _prioritize_high_volume(self, stocks: list[str]) -> list[str]:
+        """
+        Reorder stocks to prioritize known high-volume stocks.
+
+        Args:
+            stocks: List of stock symbols
+
+        Returns:
+            Reordered list with Taiwan 50 stocks first
+        """
+        # Import here to avoid circular import
+        from backend.config import TAIWAN_50
+
+        # Create sets for efficient lookup
+        taiwan_50_set = set(TAIWAN_50)
+        stock_set = set(stocks)
+
+        # Start with Taiwan 50 stocks that are in the list
+        prioritized = [s for s in TAIWAN_50 if s in stock_set]
+
+        # Add remaining stocks
+        remaining = [s for s in stocks if s not in taiwan_50_set]
+
+        return prioritized + remaining
 
 
 # Convenience function for backward compatibility
