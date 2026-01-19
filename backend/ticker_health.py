@@ -263,3 +263,55 @@ class TickerHealth:
             "quarantined": quarantined,
             "total_failures": total_failures,
         }
+
+    def reset_all_quarantine(self) -> int:
+        """
+        Reset all quarantined symbols to active status.
+
+        Use this when a systemic failure (API outage, network issue)
+        caused all tickers to be incorrectly quarantined.
+
+        Returns:
+            Number of symbols reset
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """UPDATE ticker_status SET
+                   status = 'active',
+                   consecutive_failures = 0,
+                   quarantined_at = NULL,
+                   next_retry_at = NULL
+                   WHERE status = 'quarantined'"""
+            )
+            count = cursor.rowcount
+            conn.commit()
+
+        if count > 0:
+            logger.info(f"Reset {count} quarantined symbols to active")
+        return count
+
+    def should_quarantine(self, symbol: str, total_symbols: int, failed_count: int) -> bool:
+        """
+        Determine if a symbol should be quarantined.
+
+        Prevents quarantine during systemic failures (>50% tickers failing).
+
+        Args:
+            symbol: The symbol being evaluated
+            total_symbols: Total number of symbols being screened
+            failed_count: Number of symbols that failed in this screening cycle
+
+        Returns:
+            True if quarantine is appropriate, False if likely systemic issue
+        """
+        if total_symbols == 0:
+            return True
+
+        failure_rate = failed_count / total_symbols
+        if failure_rate > 0.5:
+            logger.warning(
+                f"Systemic failure detected ({failed_count}/{total_symbols} = {failure_rate:.0%}). "
+                f"Skipping quarantine for {symbol}."
+            )
+            return False
+        return True

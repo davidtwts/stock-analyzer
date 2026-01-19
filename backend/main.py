@@ -22,7 +22,7 @@ from backend.config import TAIWAN_50, STOCK_NAMES, TOP_TRADING_VALUE_COUNT
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).parent.parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
-from backend.data_engine import DataEngine
+from backend.twse_data_engine import TWSEDataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
 from backend.twse_sector_fetcher import fetch_top_trading_value_stocks
@@ -36,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global state
-data_engine = DataEngine()
+data_engine = TWSEDataEngine()
 screener = Screener(data_engine)
 scheduler = StockScheduler()
 cached_results: list[ScreenResult] = []
@@ -78,6 +78,10 @@ def run_screening():
         top_stocks = TAIWAN_50
 
     logger.info(f"Screening {len(top_stocks)} stocks...")
+
+    # Pre-fetch realtime quotes in batches (more efficient)
+    data_engine.prefetch_realtime(top_stocks)
+
     cached_results = screener.screen_all(top_stocks)
     last_update = datetime.now()
     logger.info(f"Found {len(cached_results)} stocks matching criteria")
@@ -237,12 +241,30 @@ async def get_chart(symbol: str):
 @app.get("/api/status")
 async def get_status():
     """Get system status."""
+    health_summary = data_engine._health.get_status_summary()
     return {
         "last_update": last_update.isoformat() if last_update else None,
         "next_update": scheduler.next_update.isoformat() if scheduler.next_update else None,
         "market_status": "open" if scheduler.is_market_open() else "closed",
         "stocks_monitored": len(TAIWAN_50),
         "stocks_matched": len(cached_results),
+        "ticker_health": health_summary,
+    }
+
+
+@app.post("/api/reset-quarantine")
+async def reset_quarantine():
+    """
+    Reset all quarantined tickers to active status.
+
+    Use this after a systemic failure (API outage) incorrectly
+    quarantined all tickers.
+    """
+    count = data_engine._health.reset_all_quarantine()
+    return {
+        "status": "ok",
+        "reset_count": count,
+        "message": f"Reset {count} quarantined symbols to active",
     }
 
 
