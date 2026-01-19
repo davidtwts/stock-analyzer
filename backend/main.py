@@ -18,7 +18,7 @@ from backend.config import TAIWAN_50, STOCK_NAMES, TOP_TRADING_VALUE_COUNT
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).parent.parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
-from backend.data_engine import DataEngine
+from backend.twse_data_engine import TWSEDataEngine
 from backend.screener import Screener, ScreenResult
 from backend.scheduler import StockScheduler
 from backend.twse_sector_fetcher import fetch_top_trading_value_stocks
@@ -32,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global state
-data_engine = DataEngine()
+data_engine = TWSEDataEngine()
 screener = Screener(data_engine)
 scheduler = StockScheduler()
 cached_results: list[ScreenResult] = []
@@ -57,6 +57,10 @@ def run_screening():
         top_stocks = TAIWAN_50
 
     logger.info(f"Screening {len(top_stocks)} stocks...")
+
+    # Pre-fetch realtime quotes in batches (more efficient)
+    data_engine.prefetch_realtime(top_stocks)
+
     cached_results = screener.screen_all(top_stocks)
     last_update = datetime.now()
     logger.info(f"Found {len(cached_results)} stocks matching criteria")
